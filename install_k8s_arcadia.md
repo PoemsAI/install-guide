@@ -173,30 +173,41 @@ kubeadm join 192.168.0.243:6443 --token wemz3u.u4xkcsk16ono53yd \
 在 master 和 worker 都执行完 kubeadm 命令后，我们在 master 上就可以查看 node 的信息，可以看到目前 node1 & node2 都已经加入 kubernetes 集群，STATUS 都是 NotReady 的状态：
 
 ```
-kubectl get no -A -owide
-NAME    STATUS     ROLES           AGE   VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
-node1   NotReady   control-plane   93s   v1.28.2   192.168.31.29           Ubuntu 22.04.2 LTS   6.2.0-33-generic   containerd://1.6.24
-node2   NotReady             17s   v1.28.2   192.168.31.68           Ubuntu 22.04.2 LTS   6.2.0-33-generic   containerd://1.6.24
+root@k8s-master1:~# kubectl get no -A -owide
+NAME             STATUS     ROLES           AGE   VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+k8s-master1      NotReady   control-plane   50m   v1.29.2   192.168.0.245   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
+k8s-node1        NotReady   <none>          36s   v1.29.2   192.168.0.247   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
+k8s-node2        NotReady   <none>          20s   v1.29.2   192.168.0.246   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
+k8s-node3-gpu1   NotReady   <none>          40s   v1.29.2   192.168.0.241   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
 ```
 同时我们可以看到 pod 的信息，kubernetes 的核心组件都已经在 Running 状态。其中 coredns 仍然处在 Pending 状态， 这是正常的：
 
 ```
-kubectl get po -A -owide
-NAMESPACE     NAME                            READY   STATUS    RESTARTS   AGE     IP              NODE     NOMINATED NODE   READINESS GATES
-kube-system   coredns-6554b8b87f-59p6w        0/1     Pending   0          4m19s                           
-kube-system   coredns-6554b8b87f-kwkw8        0/1     Pending   0          4m19s                           
-kube-system   etcd-node1                      1/1     Running   0          4m24s   192.168.31.29   node1               
-kube-system   kube-apiserver-node1            1/1     Running   0          4m24s   192.168.31.29   node1               
-kube-system   kube-controller-manager-node1   1/1     Running   0          4m24s   192.168.31.29   node1               
-kube-system   kube-proxy-q2td8                1/1     Running   0          3m12s   192.168.31.68   node2               
-kube-system   kube-proxy-w72hz                1/1     Running   0          4m19s   192.168.31.29   node1               
-kube-system   kube-scheduler-node1            1/1     Running   0          4m24s   192.168.31.29   node1     
+root@k8s-master1:~# kubectl get po -A -owide
+NAMESPACE     NAME                                  READY   STATUS    RESTARTS   AGE   IP              NODE             NOMINATED NODE   READINESS GATES
+kube-system   coredns-5f98f8d567-2gnxq              0/1     Pending   0          50m   <none>          <none>           <none>           <none>
+kube-system   coredns-5f98f8d567-zk6q7              0/1     Pending   0          50m   <none>          <none>           <none>           <none>
+kube-system   etcd-k8s-master1                      1/1     Running   0          50m   192.168.0.245   k8s-master1      <none>           <none>
+kube-system   kube-apiserver-k8s-master1            1/1     Running   0          50m   192.168.0.245   k8s-master1      <none>           <none>
+kube-system   kube-controller-manager-k8s-master1   1/1     Running   0          50m   192.168.0.245   k8s-master1      <none>           <none>
+kube-system   kube-proxy-c4m4m                      1/1     Running   0          68s   192.168.0.246   k8s-node2        <none>           <none>
+kube-system   kube-proxy-dsf5h                      1/1     Running   0          84s   192.168.0.247   k8s-node1        <none>           <none>
+kube-system   kube-proxy-ftbx5                      1/1     Running   0          50m   192.168.0.245   k8s-master1      <none>           <none>
+kube-system   kube-proxy-pkqhl                      1/1     Running   0          88s   192.168.0.241   k8s-node3-gpu1   <none>           <none>
+kube-system   kube-scheduler-k8s-master1            1/1     Running   0          50m   192.168.0.245   k8s-master1      <none>           <none>
 ```
           
-为了解决节点 NotReady 和 coredns Pending的问题，我们需要安装网络插件，这里我们使用的是 kube-ovn 插件。
+为了解决节点 NotReady 和 coredns Pending的问题，我们需要安装网络插件，可使用Calico、terway或者kube-ovn，由于我们的云主机使用了阿里云VPC，所以这里推荐使用阿里巴巴的 terway。
 
+### 网络插件方案一：安装 terway 插件
+1、将iptables的policy换成ACCEPT，`iptables -P FORWARD ACCEPT`。
+2、检查节点上的 `"rp_filter"` 内核参数，并在每个节点上将其设置为"0"。
+3、通过 `kubectl get cs` 验证集群安装完成
 
-### 安装 kube-ovn插件
+### 网络插件方案二：安装 Calico 插件
+请参考 [Install Calico](https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart)
+
+### 网络插件方案三：安装 kube-ovn 插件
 
 我们到官网下载 kube-ovn 的安装脚本：
 ```
@@ -307,46 +318,58 @@ helm install --generate-name \
 
 ## 安装 arcadia
 1、克隆arcadia代码
+```
 git clone https://github.com/kubeagi/arcadia.git 
+```
 2、进入工作目录
+```
 cd arcadia/deploy/charts/arcadia 
+```
 3、编辑 values.yaml
-替换 <replaced-ingress-nginx-ip> 为kubebb安装过程中部署的ingress node IP
-:%s/old/new/g         
-4、安装
-helm install arcadia -n kubeagi-system --create-namespace  . 
-5、查看安装状态
-kubectl get pods -n kubeagi-system 
-6、访问arcadia门户
-https://portal.<replaced-ingress-nginx-ip>.nip.io
+替换 `<replaced-ingress-nginx-ip>` 为kubebb安装过程中部署的`ingress node IP`
+>替换命令 :%s/old/new/g         
 
-添加管理集群
+4、安装
+```
+helm install arcadia -n kubeagi-system --create-namespace  . 
+```
+5、查看安装状态
+```
+kubectl get pods -n kubeagi-system 
+```
+6、访问arcadia门户
+```
+https://portal.<replaced-ingress-nginx-ip>.nip.io
+```
+### 添加管理集群
 1、为集群管理创建一个 namespace，可以使用 cluster-system，用来保存集群信息
+```
 kubectl create ns cluster-system  
+```
 2、获取添加集群的 token
+```
 export TOKENNAME=$(kubectl get serviceaccount/host-cluster-reader -n u4a-system -o jsonpath='{.secrets[0].name}')  
 kubectl get secret $TOKENNAME -n u4a-system -o jsonpath='{.data.token}' | base64 -d  
+```
 3、登录管理平台，进入 “集群管理”，点击“添加集群”。 
 4、输入集群名称，按需修改集群后缀，这里使用“API Token”方式接入集群。 
+```
 API Host，使用支持 OIDC 协议的 K8s API 地址，可以通过 kubectl get ingress -nu4a-system 查看kube-oidc-proxy-server-ingress 对应的 Host 信息，比如 https://k8s.172.22.96.136.nip.io
 API Token，输入第 2 步获取的 token 信息
+```
 5、添加成功后，可以在列表上看到集群信息及其状态；选择“租户管理”，会看到名称为 "system-tenant" 的一个系统租户
 
 
-【可选】安装ingress-nginx插件 
+## 【可选】安装ingress-nginx插件 
 ingress-nginx的yaml文件下载地址：https://kubernetes.github.io/ingress-nginx/deploy/
 使用 curl -O https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
 下载到本地之后，修改里面的文件，需要将LoadBlance修改为NodePort,里面的镜像可参照对应版本换成阿里云仓库的方便下载registry.cn-hangzhou.aliyuncs.com/google_containers/，里面的部署方式为deployment,也可换成daemonset,service也可自行设置成固定的，若未设置，将自动分配。
-
-
-
-
 
 完成后，访问服务如下：
 
 
 
-【可选】安装dashboard 
+## 【可选】安装dashboard 
 dashboard下载地址：GitHub - kubernetes/dashboard: General-purpose web UI for Kubernetes clusters
 下载yaml文件：curl -O https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
 注意：有时候网络不好下载不下来，建议多试几次，会下载下来，下载下来之后将里面射击到的镜像标签改为阿里云仓库的，将dashboard的暴露类型改为nodePort。然后执行 kubectl apply -f recommended.yaml
