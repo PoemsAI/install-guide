@@ -358,7 +358,7 @@ git clone https://github.com/kubebb/core.git
 ```
 
 ## 安装nvidia gpu operator
-1、在GPU节点安装helm
+1、在GPU节点安装helm、nvidia-ctk 
 ```
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 \
     && chmod 700 get_helm.sh \
@@ -368,7 +368,7 @@ Configuring containerd (for Kubernetes)
 
 >Installing  nvidia-ctk with Apt，查看 https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#configuring-containerd-for-kubernetes
 
-1、Configure the production repository:
+* Configure the production repository:
 ```
 $ curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
   && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
@@ -379,15 +379,15 @@ Optionally, configure the repository to use experimental packages:
 ```
 $ sed -i -e '/experimental/ s/^#//g' /etc/apt/sources.list.d/nvidia-container-toolkit.list
 ```
-2、Update the packages list from the repository: 
+* Update the packages list from the repository: 
 ```
 $ sudo apt-get update
 ```
-3、Install the NVIDIA Container Toolkit packages: 
+* Install the NVIDIA Container Toolkit packages: 
 ```
 $ sudo apt-get install -y nvidia-container-toolkit
 ```
-4、Configure the container runtime by using the nvidia-ctk command: 
+* Configure the container runtime by using the nvidia-ctk command: 
 ```
 $ sudo nvidia-ctk runtime configure --runtime=containerd
 ```
@@ -407,6 +407,14 @@ helm repo update
 helm install --generate-name \
  -n gpu-operator --create-namespace \
  nvidia/gpu-operator --set driver.enabled=false
+```
+如果安装失败，uninstall release
+```
+root@k8s-master1:~# helm list -n gpu-operator
+NAME                    NAMESPACE       REVISION        UPDATED                                 STATUS          CHART                   APP VERSION
+gpu-operator-1710660776 gpu-operator    1               2024-03-17 15:33:12.00034727 +0800 CST  deployed        gpu-operator-v23.9.2    v23.9.2    
+root@k8s-master1:~# helm uninstall gpu-operator-1710660776 -n gpu-operator 
+release "gpu-operator-1710660776" uninstalled
 ```
 
 ## 安装 arcadia
