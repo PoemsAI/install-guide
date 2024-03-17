@@ -70,10 +70,10 @@ data:
   eni_conf: |
     {
       "version": "1",
-      "access_key": "LTAI5tFDEzHjeFqbuWJsQ3w4",
-      "access_secret": "dX8hZEnojaEHQM5czSNGYFmXiKAprY",
+      "access_key": "xxxx",
+      "access_secret": "xxxx",
       "service_cidr": "10.96.0.0/12",
-      "security_group": "sg-8vb4bs3896bys13ifc93",
+      "security_group": "sg-xxxx",
       "max_pool_size": 5,
       "min_pool_size": 0
     }
