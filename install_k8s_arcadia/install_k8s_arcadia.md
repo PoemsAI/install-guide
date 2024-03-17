@@ -51,8 +51,7 @@ $ sudo sysctl --system
 
 
 ## 安装 kubeadm
-1、安装 kubeadm、kubelet 和 kubectl
-
+1、安装 kubeadm、kubelet 和 kubectl，参考 [install-kubeadm](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)
 
 以下指令适用于 Kubernetes 1.29. 
 1）更新 apt 包索引并安装使用 Kubernetes apt 仓库所需要的包： 
@@ -82,7 +81,6 @@ sudo apt-mark hold kubelet kubeadm kubectl
 ```
 
 ## 安装容器运行时 containerd
-
 在最新的 kubernetes 中已经使用 containerd 作为默认的容器运行时，所以我们需要安装 containerd 。先安装依赖：
 ```
 $ sudo apt-get install ca-certificates curl gnupg
@@ -112,7 +110,7 @@ $ containerd config default > /etc/containerd/config.toml
 由于一些众所周知的原因，部分容器镜像很难拉取到，所以这里我们需要修改默认配置：
 ```
 # sandbox_image修改为aliyun源
-sandbox_image = "registry.aliyuncs.com/k8sxio/pause:3.8"
+sandbox_image = "registry.aliyuncs.com/k8sxio/pause:3.9"
 # 启动 systemd cgroup 驱动
 SystemdCgroup = true
 ```
@@ -121,6 +119,16 @@ SystemdCgroup = true
 systemctl daemon-reload
 systemctl restart containerd.service
 ```
+
+## 安装 helm
+```
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install apt-transport-https --yes
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
+```
+
 ## 使用 kubeadm 创建集群
 
 ### 创建 master
@@ -130,26 +138,29 @@ systemctl restart containerd.service
 ```
 $ sudo kubeadm init --image-repository='registry.cn-hangzhou.aliyuncs.com/google_containers'
 ```
-或通过 config 文件创建
+##### 这里推荐通过 config 文件创建
+
+查看默认初始化参数配置
 ```
+root@k8s-master1:~# kubeadm config print init-defaults
 apiVersion: kubeadm.k8s.io/v1beta3
 bootstrapTokens:
-  - groups:
-      - system:bootstrappers:kubeadm:default-node-token
-    token: abcdef.0123456789abcdef
-    ttl: 24h0m0s
-    usages:
-      - signing
-      - authentication
+- groups:
+  - system:bootstrappers:kubeadm:default-node-token
+  token: abcdef.0123456789abcdef
+  ttl: 24h0m0s
+  usages:
+  - signing
+  - authentication
 kind: InitConfiguration
 localAPIEndpoint:
+  advertiseAddress: 1.2.3.4
   bindPort: 6443
 nodeRegistration:
   criSocket: unix:///var/run/containerd/containerd.sock
   imagePullPolicy: IfNotPresent
+  name: node
   taints: null
-  kubeletExtraArgs:
-    cloud-provider: "external"
 ---
 apiServer:
   timeoutForControlPlane: 4m0s
@@ -161,15 +172,42 @@ dns: {}
 etcd:
   local:
     dataDir: /var/lib/etcd
-imageRepository: k8s.m.daocloud.io
+imageRepository: registry.k8s.io
 kind: ClusterConfiguration
-kubernetesVersion: 1.28.0
+kubernetesVersion: 1.29.0
 networking:
   dnsDomain: cluster.local
-  serviceSubnet: 172.21.0.0/24
-  podSubnet: 10.244.0.0/16
-$ kubeadm init --config cluster.yaml
+  serviceSubnet: 10.96.0.0/12
+scheduler: {}
 ```
+
+修改配置为 [k8scluster.yaml](k8scluster.yaml)
+
+配置文件准备好后，可以使用如下命令先 list 需要 pull 的相关镜像：
+```
+root@k8s-master1:~# kubeadm config images list --config k8scluster.yaml 
+registry.aliyuncs.com/google_containers/kube-apiserver:v1.29.3
+registry.aliyuncs.com/google_containers/kube-controller-manager:v1.29.3
+registry.aliyuncs.com/google_containers/kube-scheduler:v1.29.3
+registry.aliyuncs.com/google_containers/kube-proxy:v1.29.3
+registry.aliyuncs.com/google_containers/coredns:v1.11.1
+registry.aliyuncs.com/google_containers/pause:3.9
+registry.aliyuncs.com/google_containers/etcd:3.5.12-0
+```
+
+在开始初始化集群之前，使用 `kubeadm config images pull --config k8scluster.yaml` 预先在各个服务器节点上拉取所k8s需要的容器镜像
+```
+root@k8s-master1:~# kubeadm config images pull --config k8scluster.yaml 
+[config/images] Pulled registry.aliyuncs.com/google_containers/kube-apiserver:v1.29.3
+[config/images] Pulled registry.aliyuncs.com/google_containers/kube-controller-manager:v1.29.3
+[config/images] Pulled registry.aliyuncs.com/google_containers/kube-scheduler:v1.29.3
+[config/images] Pulled registry.aliyuncs.com/google_containers/kube-proxy:v1.29.3
+[config/images] Pulled registry.aliyuncs.com/google_containers/coredns:v1.11.1
+[config/images] Pulled registry.aliyuncs.com/google_containers/pause:3.9
+[config/images] Pulled registry.aliyuncs.com/google_containers/etcd:3.5.12-0
+```
+初始化集群 `kubeadm init --config k8scluster.yaml`
+
 安装完毕后，根据提示，执行如下命令。这样 kubectl 才有权限访问该 kubernetes 集群：
 ```
 $ mkdir -p $HOME/.kube
@@ -236,240 +274,83 @@ kube-system   kube-proxy-ftbx5                      1/1     Running   0         
 kube-system   kube-proxy-pkqhl                      1/1     Running   0          88s   192.168.0.241   k8s-node3-gpu1   <none>           <none>
 kube-system   kube-scheduler-k8s-master1            1/1     Running   0          50m   192.168.0.245   k8s-master1      <none>           <none>
 ```
-          
-为了解决节点 NotReady 和 coredns Pending的问题，我们需要安装网络插件，可使用Calico、terway或者kube-ovn，由于我们的云主机使用了阿里云VPC，所以这里推荐使用阿里巴巴的 terway。
 
-
-
-### 网络插件（方案一）：安装 terway 
-1、将iptables的policy换成ACCEPT，`iptables -P FORWARD ACCEPT`。
-2、检查节点上的 `"rp_filter"` 内核参数，并在每个节点上将其设置为"0"。
-
-* 查看 `"rp_filter"` 内核参数， `vi /etc/sysctl.conf `
-* 确保`net.ipv4.conf.all.rp_filter = 0`，
-* 执行命令 `sysctl -p`
+## 安装网络插件
+为了解决节点 NotReady 和 coredns Pending的问题，我们需要安装网络插件，可使用flannel、Calico、terway或者kube-ovn，这里使用flannel。其他网络模式请参考 [其他网络模式](network_policy.md)。
+>Deploying [Flannel](https://github.com/flannel-io/flannel#deploying-flannel-manually) with kubectl
 ```
-vm.swappiness = 0
-kernel.sysrq = 1
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+```
+>If you use custom podCIDR (not 10.244.0.0/16) you first need to download the above manifest and modify the network to match your one.
 
-net.ipv4.neigh.default.gc_stale_time = 120
-
-# see details in https://help.aliyun.com/knowledge_detail/39428.html
-net.ipv4.conf.all.rp_filter = 0
-net.ipv4.conf.default.rp_filter = 0
-net.ipv4.conf.default.arp_announce = 2
-net.ipv4.conf.lo.arp_announce = 2
-net.ipv4.conf.all.arp_announce = 2
-
-# see details in https://help.aliyun.com/knowledge_detail/41334.html
-net.ipv4.tcp_max_tw_buckets = 5000
-net.ipv4.tcp_syncookies = 1
-net.ipv4.tcp_max_syn_backlog = 1024
-net.ipv4.tcp_synack_retries = 2
-net.ipv4.tcp_slow_start_after_idle = 0
+安装后，查看 Pod 状态：
+```
+root@k8s-master1:~# kubectl get pods -A -owide
+NAMESPACE      NAME                                  READY   STATUS    RESTARTS   AGE     IP              NODE             NOMINATED NODE   READINESS GATES
+kube-flannel   kube-flannel-ds-4rdb2                 1/1     Running   0          11m     192.168.0.246   k8s-node2        <none>           <none>
+kube-flannel   kube-flannel-ds-6gdlx                 1/1     Running   0          11m     192.168.0.245   k8s-master1      <none>           <none>
+kube-flannel   kube-flannel-ds-d6b8g                 1/1     Running   0          11m     192.168.0.247   k8s-node1        <none>           <none>
+kube-flannel   kube-flannel-ds-r2fmb                 1/1     Running   0          11m     192.168.0.241   k8s-node3-gpu1   <none>           <none>
+kube-system    coredns-857d9ff4c9-n7wb4              1/1     Running   0          7m21s   172.16.2.2      k8s-node1        <none>           <none>
+kube-system    coredns-857d9ff4c9-sj957              1/1     Running   0          7m21s   172.16.3.2      k8s-node3-gpu1   <none>           <none>
+kube-system    etcd-k8s-master1                      1/1     Running   0          99m     192.168.0.245   k8s-master1      <none>           <none>
+kube-system    kube-apiserver-k8s-master1            1/1     Running   0          99m     192.168.0.245   k8s-master1      <none>           <none>
+kube-system    kube-controller-manager-k8s-master1   1/1     Running   0          99m     192.168.0.245   k8s-master1      <none>           <none>
+kube-system    kube-proxy-29x6k                      1/1     Running   0          97m     192.168.0.247   k8s-node1        <none>           <none>
+kube-system    kube-proxy-9dp8w                      1/1     Running   0          97m     192.168.0.246   k8s-node2        <none>           <none>
+kube-system    kube-proxy-c7bp4                      1/1     Running   0          98m     192.168.0.245   k8s-master1      <none>           <none>
+kube-system    kube-proxy-ndmgn                      1/1     Running   0          97m     192.168.0.241   k8s-node3-gpu1   <none>           <none>
+kube-system    kube-scheduler-k8s-master1            1/1     Running   0          99m     192.168.0.245   k8s-master1      <none>           <none>
 ```
 
-（可选）查看系统路由表
-```
-root@k8s-master1:~# route -n
-Kernel IP routing table
-Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
-0.0.0.0         192.168.0.253   0.0.0.0         UG    100    0        0 eth0
-100.100.2.136   192.168.0.253   255.255.255.255 UGH   100    0        0 eth0
-100.100.2.138   192.168.0.253   255.255.255.255 UGH   100    0        0 eth0
-192.168.0.0     0.0.0.0         255.255.255.0   U     100    0        0 eth0
-192.168.0.253   0.0.0.0         255.255.255.255 UH    100    0        0 eth0
-```
-3、通过 `kubectl get cs` 验证集群安装完成
-```
-root@k8s-master1:~# kubectl get cs
-Warning: v1 ComponentStatus is deprecated in v1.19+
-NAME                 STATUS    MESSAGE   ERROR
-scheduler            Healthy   ok        
-controller-manager   Healthy   ok        
-etcd-0               Healthy   ok  
-```
-4、安装 terway 插件
-
-1）在安装之前，Terway 访问阿里云 OpenAPI 需要得到 RAM 权限 的 access_id 和 access_key，通过脚本编辑新建自定义权限策略，赋予 Terway 需要的权限:
-
-```
-{
-  "Version": "1",
-  "Statement": [{
-      "Action": [
-        "ecs:CreateNetworkInterface",
-        "ecs:DescribeNetworkInterfaces",
-        "ecs:AttachNetworkInterface",
-        "ecs:DetachNetworkInterface",
-        "ecs:DeleteNetworkInterface",
-        "ecs:DescribeInstanceAttribute",
-        "ecs:DescribeInstanceTypes",
-        "ecs:AssignPrivateIpAddresses",
-        "ecs:UnassignPrivateIpAddresses",
-        "ecs:DescribeInstances",
-        "ecs:ModifyNetworkInterfaceAttribute"
-      ],
-      "Resource": [
-        "*"
-      ],
-      "Effect": "Allow"
-    },
-    {
-      "Action": [
-        "vpc:DescribeVSwitches"
-      ],
-      "Resource": [
-        "*"
-      ],
-      "Effect": "Allow"
-    }
-  ]
-}
-```
->注: 为确保后续步骤中所使用的 RAM 用户具备足够的权限，请与本文保持一致，给予 RAM 用户 AdministratorAccess 和 AliyunSLBFullAccess 权限
-
-![edit-ram](image-2.png)
-
-当创建完成，将该自定义权限策略绑定到用户或用户组:
-
-
-![bind_ram](image-3.png)
-
-最后点击创建 AccessKey，并保存 `access_secret` 和 `access_key`，这需要在下面安装 Terway 的时候用到。
-
-
-2）Terway有两种安装模式：
-
-* VPC模式
-VPC模式，使用Aliyun VPC路由来打通网络，可以使用独立ENI给Pod，安装方式：
-修改 [terway.yml](https://github.com/AliyunContainerService/terway/blob/main/terway.yml) 文件中的`eni.conf`的配置中的`授权`和`网段配置`，以及Network的网段配置，然后通过 `kubectl apply -f terway.yml` 来安装terway插件。
-修改 `access_key、access_secret、service_cidr、security_group`
-查看 service_cidr，运行 `kubectl get cm kubeadm-config -n kube-system -o yaml`
-```
-root@k8s-master1:~# kubectl get cm kubeadm-config -n kube-system -o yaml
-apiVersion: v1
-data:
-  ClusterConfiguration: |
-    apiServer:
-      extraArgs:
-        authorization-mode: Node,RBAC
-      timeoutForControlPlane: 4m0s
-    apiVersion: kubeadm.k8s.io/v1beta3
-    certificatesDir: /etc/kubernetes/pki
-    clusterName: kubernetes
-    controllerManager: {}
-    dns: {}
-    etcd:
-      local:
-        dataDir: /var/lib/etcd
-    imageRepository: registry.cn-hangzhou.aliyuncs.com/google_containers
-    kind: ClusterConfiguration
-    kubernetesVersion: v1.29.2
-    networking:
-      dnsDomain: cluster.local
-      serviceSubnet: 10.96.0.0/12
-    scheduler: {}
-kind: ConfigMap
-metadata:
-  creationTimestamp: "2024-03-15T13:11:47Z"
-  name: kubeadm-config
-  namespace: kube-system
-  resourceVersion: "199"
-  uid: 54d770fd-6156-48d9-b1b7-245f3417033f
-```
-![修改access_key、access_secret、service_cidr、security_group](image-1.png)
-修改 Network 的网段
-![修改 Network 的网段](image.png)
-
-* ENI多IP模式
-ENI多IP模式，使用Aliyun ENI的辅助IP来打通网络，不受VPC的路由条目限制，安装方式：
-修改[terway-multiip.yml](https://github.com/AliyunContainerService/terway/blob/main/terway-multiip.yml)文件中的eni.conf的配置中的授权和资源配置，然后通过 `kubectl apply -f terway-multiip.yml` 来安装terway插件。
-
-> 如果遇到如下错误，可能是kubeadm init的时候没有加 `--pod-network-cidr 10.96.0.0/12`
-```
-root@k8s-master1:~# kubectl  logs terway-2fp44   -n kube-system
-Defaulted container "terway" out of: terway, policy, terway-init (init)
-time="2024-03-15T16:32:35Z" level=info msg="Starting terway of version: fd2b7b8"
-W0315 16:32:35.071103   54740 client_config.go:541] Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.
-time="2024-03-15T16:32:35Z" level=fatal msg="error init k8s service: failed getting node cidr: node \"k8s-master1\" pod cidr not assigned"
-```
-解决办法：
-编辑 master 机器上的 `/etc/kubernetes/manifests/kube-controller-manager.yaml`，开启`allocate-node-cidrs`为`true`,`cluster-cidr`为`10.96.0.0/12`
-![alt text](image-4.png)
-
-重启kubelet： `systemctl restart  kubelet`
-
-3）使用 `kubectl get ds terway` 看到插件在每个节点上都运行起来后，表明插件安装成功。
-```
-root@k8s-master1:~# kubectl get ds terway -n kube-system
-NAME     DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR              AGE
-terway   4         4         4       4            4           kubernetes.io/arch=amd64   30m
-```
-
-### 网络插件（方案二）：安装 Calico 插件
-请参考 [Install Calico](https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart)
-
-### 网络插件（方案三）：安装 kube-ovn 插件
-
-我们到官网下载 kube-ovn 的安装脚本：
-```
-$ wget https://raw.githubusercontent.com/kubeovn/kube-ovn/release-1.12/dist/images/install.sh
-```
-执行安装即可（如果执行失败，可以从官网下载 cleanup.sh 的脚本执行回退，再重复安装几次，一般失败都是因为镜像拉取的问题。）：
-```
-$ bash install.sh
-```
-执行成功后可以看到 kube-ovn 的 logo，之后就可以重新查看节点和 pod 的信息：
-```
-$ kubectl get node
-NAME    STATUS   ROLES           AGE     VERSION
-node1   Ready    control-plane   4h      v1.28.2
-node2   Ready              3h59m   v1.28.2
-
-$ kubectl get po -A -owide
-NAMESPACE     NAME                                   READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
-kube-system   coredns-6554b8b87f-xx59w               1/1     Running   0          88s     10.16.0.5       node2              
-kube-system   coredns-6554b8b87f-zzdsb               1/1     Running   0          88s     10.16.0.4       node2              
-kube-system   etcd-node1                             1/1     Running   0          4h1m    192.168.31.29   node1              
-kube-system   kube-apiserver-node1                   1/1     Running   0          4h1m    192.168.31.29   node1              
-kube-system   kube-controller-manager-node1          1/1     Running   0          4h1m    192.168.31.29   node1              
-kube-system   kube-ovn-cni-bvj4b                     1/1     Running   0          96s     192.168.31.29   node1              
-kube-system   kube-ovn-cni-hqqvn                     1/1     Running   0          96s     192.168.31.68   node2              
-kube-system   kube-ovn-controller-65f6f75847-xjkgv   1/1     Running   0          96s     192.168.31.68   node2              
-kube-system   kube-ovn-monitor-bd6bdf97-nmlbl        1/1     Running   0          96s     192.168.31.29   node1              
-kube-system   kube-ovn-pinger-8cmjp                  1/1     Running   0          86s     10.16.0.6       node2              
-kube-system   kube-proxy-q2td8                       1/1     Running   0          4h      192.168.31.68   node2              
-kube-system   kube-proxy-w72hz                       1/1     Running   0          4h1m    192.168.31.29   node1              
-kube-system   kube-scheduler-node1                   1/1     Running   0          4h1m    192.168.31.29   node1              
-kube-system   ovn-central-745ff54dc-kzptf            1/1     Running   0          2m28s   192.168.31.29   node1              
-kube-system   ovs-ovn-5gw99                          1/1     Running   0          2m28s   192.168.31.29   node1              
-kube-system   ovs-ovn-qcxr8                          1/1     Running   0          2m27s   192.168.31.68   node2              
-```
 可以看到这里节点都已经 Ready，并且所有核心组件都处在 Running状态。到此位置 Kubernetes 集群就已经搭建完成
 
 ## 安装 stroageclass
-安装openebs-localpv
+安装 [openebs-localpv](https://openebs.io/docs/user-guides/quickstart)
+1、查看master节点名称
+```
+root@k8s-master1:~# kubectl get nodes -owide
+NAME             STATUS   ROLES           AGE   VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+k8s-master1      Ready    control-plane   12h   v1.29.2   192.168.0.245   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
+k8s-node1        Ready    <none>          11h   v1.29.2   192.168.0.247   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
+k8s-node2        Ready    <none>          11h   v1.29.2   192.168.0.246   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
+k8s-node3-gpu1   Ready    <none>          11h   v1.29.2   192.168.0.241   <none>        Ubuntu 22.04.3 LTS   5.15.0-92-generic   containerd://1.6.28
+```
+2、确认 master 节点是否有 Taint，如下看到 master 节点有 Taint
+```
+root@k8s-master1:~# kubectl describe node k8s-master1 | grep Taint
+Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+```
+3、去掉 master 节点的 Taint：
+```
+root@k8s-master1:~# kubectl taint nodes k8s-master1 node-role.kubernetes.io/control-plane:NoSchedule-
+node/k8s-master1 untainted
+```
+4、安装 openebs
 * Install using helm
 ```
 helm repo add openebs https://openebs.github.io/charts
 helm repo update
 helm install openebs --namespace openebs openebs/openebs --create-namespace
 ```
+
 * Install using kubectl
 ```
 kubectl apply -f https://openebs.github.io/charts/openebs-operator.yaml
 ```
+5、恢复 master 节点的 Taint
+```
+kubectl taint nodes k8s-master1 node-role.kubernetes.io/control-plane:NoSchedule
+```
+## 安装 Kubernetes Dashboard
+默认情况下不会部署 Dashboard。可以通过以下命令部署：
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+```
+详细参考：[部署 Dashboard UI](https://kubernetes.io/zh-cn/docs/tasks/access-application-cluster/web-ui-dashboard/)
 
 ## 安装Kubebb
-1、安装 helm
-```
-curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-sudo apt-get install apt-transport-https --yes
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt-get update
-sudo apt-get install helm
-```
+
 2、安装 kubebb
 ```
 git clone https://github.com/kubebb/core.git
@@ -574,60 +455,8 @@ API Token，输入第 2 步获取的 token 信息
 
 ## 【可选】安装ingress-nginx插件 
 ingress-nginx的yaml文件下载地址：https://kubernetes.github.io/ingress-nginx/deploy/
-使用 curl -O https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
-下载到本地之后，修改里面的文件，需要将LoadBlance修改为NodePort,里面的镜像可参照对应版本换成阿里云仓库的方便下载registry.cn-hangzhou.aliyuncs.com/google_containers/，里面的部署方式为deployment,也可换成daemonset,service也可自行设置成固定的，若未设置，将自动分配。
+使用 `curl -O https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml`
+下载到本地之后，修改里面的文件，需要将LoadBlance修改为NodePort, 里面的镜像可参照对应版本换成阿里云仓库的方便下载`registry.cn-hangzhou.aliyuncs.com/google_containers/`，里面的部署方式为deployment,也可换成daemonset,service也可自行设置成固定的，若未设置，将自动分配。
 
 完成后，访问服务如下：
 
-
-
-## 【可选】安装dashboard 
-dashboard下载地址：GitHub - kubernetes/dashboard: General-purpose web UI for Kubernetes clusters
-下载yaml文件：curl -O https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
-注意：有时候网络不好下载不下来，建议多试几次，会下载下来，下载下来之后将里面射击到的镜像标签改为阿里云仓库的，将dashboard的暴露类型改为nodePort。然后执行 kubectl apply -f recommended.yaml
-
-部署完成后访问查看
-
-
-创建一个登录dashboard的账户
-
-kubectl get clusterrole #查看集群角色
-
-kubectl get role -n kubernetes-dashboard #查看角色
-
-kubectl -n kube-system describe clusterrole admin #描述角色
-
-kubectl create serviceaccount dashboard-admin -n kube-system #在kube-system命名空间创建账户
-
-kubectl create clusterrolebinding dashboard-admin --clusterrole=cluster-admin --serviceaccount=kube-system:dashboard-admin #将创建的账户绑定到集群角色cluster-admin
-
-kubectl -n kube-system create token dashboard-admin 创建账户的token
-粘贴token登录
-将dashboard添加为Ingress服务
-```
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-name: dashboard-ingress
-namespace: kubernetes-dashboard
-annotations:
-nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
-ingress.kubernetes.io/ssl-passthrough: "true"
-nginx.ingress.kubernetes.io/use-regex: "true"
-nginx.ingress.kubernetes.io/rewrite-target: /$2
-spec:
-ingressClassName: nginx
-rules:
-- host: www.dashboard.com
-http:
-paths:
-- path: /dashboard(/|$)(.*)
-pathType: Prefix
-backend:
-service:
-name: kubernetes-dashboard
-port:
-number: 443
-```
-执行kubectl apply -f 完成后，访问如下：
-用的端口是ingress的https映射端口，若用ingress的http映射端口，则无法认证登录。
