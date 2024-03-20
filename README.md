@@ -1,6 +1,6 @@
 # 安装手册
 
-* [k8s 集群和 KubeAGI 安装手册](install_k8s_arcadia/install_k8s_arcadia.md)
+* [k8s 集群和 KubeAGI 安装手册](install_k8s_arcadia_cluster/install_k8s_arcadia.md)
 
 * [使用 Kind 安装单节点 k8s 和 KubeAGI](install_k8s_arcadia_standalone/install_standalone.md)
 
