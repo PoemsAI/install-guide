@@ -1,3 +1,8 @@
+### 模型服务崩溃
+![alt text](image.png)
+
+![alt text](image-1.png)
+
 ### 性能优化问题
 1、查看Docker分配的内存，给到足够的内存
 ![docker](docker_memory.png)
