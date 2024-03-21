@@ -507,6 +507,8 @@ mc --insecure cp -r bge-reranker-large/  arcadia/kubeagi-system/model/bge-reran
 https://portal.172.18.0.2.nip.io/kubeagi-apis/swagger/index.html
 
 
+## u4a使用公网域名+证书
+请查看 [u4a使用公网域名+证书](u4a使用公网域名+证书.md)
 
 ## 【可选】安装ingress-nginx插件 
 ingress-nginx的yaml文件下载地址：https://kubernetes.github.io/ingress-nginx/deploy/

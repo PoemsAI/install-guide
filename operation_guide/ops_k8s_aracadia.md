@@ -33,6 +33,10 @@ kubectl get pod -n poemsai --no-headers=true | grep chatglm2-6b-worker-69499bb74
 
 参见 [k8s常用命令](k8s_commands.md)
 
+## 配置监控日志服务
+
+## API 测试
+
 ## containerd 运维
 Containerd 可以在宿主机中管理完整的容器生命周期：容器镜像的传输和存储、容器的执行和管理、存储和网络等。它主要负责干以下事情：
 * 管理容器的生命周期(从创建容器到销毁容器)
