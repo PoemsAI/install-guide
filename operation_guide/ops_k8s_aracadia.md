@@ -35,6 +35,8 @@ kubectl get pod -n poemsai --no-headers=true | grep chatglm2-6b-worker-69499bb74
 
 ## 配置监控日志服务
 
+## CI/CD 工具
+
 ## API 测试
 
 ## containerd 运维
