@@ -27,6 +27,11 @@
 3. 查看 Pod 日志：kubectl logs <pod-name> -n <namespace>
 4. 尾部 Pod 日志：kubectl logs -f <pod-name> -n <namespace>
 5. 在 pod 中执行命令：kubectl exec -it <pod-name> -n <namespace> -- <command>
+```
+➜  ~ kubectl exec -it -n kubeagi-system  arcadia-postgresql-0   sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+```
+
 
 ### Pod 健康检查：
 
@@ -186,7 +191,7 @@
 
 1. 使用 Telepresence 调试 pod：`telepresence --namespace <namespace> --swap-deployment <pod-name>`
 
-### Kubeconfig 和上下文：
+### KubeConfig 和上下文：
 
 1. 列出可用的上下文：`kubectl config get-contexts`
 2. 切换到不同的上下文：`kubectl config use-context <context-name>`

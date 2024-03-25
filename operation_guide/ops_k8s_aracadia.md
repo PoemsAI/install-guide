@@ -33,11 +33,79 @@ kubectl get pod -n poemsai --no-headers=true | grep chatglm2-6b-worker-69499bb74
 
 参见 [k8s常用命令](k8s_commands.md)
 
+## PostgreSQL数据库运维
+
+helm方式安装 postgresql 及 [pgadmin](https://github.com/rowanruseler/helm-charts/tree/master/charts/pgadmin4)
+安装命令：
+```
+$ helm repo add runix https://helm.runix.net/
+$ helm install my-release runix/pgadmin4
+```
+执行结果如下：
+```
+➜  ~ helm install pgadmin4  runix/pgadmin4 -n kubeagi-system
+NAME: pgadmin4
+LAST DEPLOYED: Mon Mar 25 18:16:13 2024
+NAMESPACE: kubeagi-system
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace kubeagi-system -l "app.kubernetes.io/name=pgadmin4,app.kubernetes.io/instance=pgadmin4" -o jsonpath="{.items[0].metadata.name}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl port-forward $POD_NAME 8080:80
+```
+
+1、连接数据库
+```
+psql -h 127.0.0.1 -p 5432 -U admin -d arcadia  
+```
+2、执行sql文件
+```
+psql -h ${PGHOST} -p ${PGPORT} -U ${PGUSER} -d safe_browser -f xxxx.sql
+
+\i  /xxxxx/xxx/xxxxxx.sql
+```
+3、切换数据库,相当于mysql的use dbname
+```
+\c dbname
+```
+4、列举数据库，相当于mysql的show databases
+```
+\l
+```
+5、列举表，相当于mysql的show tables
+```
+\dt
+```
+6、查看表结构，相当于desc tblname,show columns from tbname
+```
+\d tblname
+```
+7、导出整个库
+```
+su - postgres
+pg_dump -h 127.0.0.1 -p 5876  -U admin  arcadia>arcadia.sql  (注意>符号前后不能有空格)
+```
+8、导出某个表(-t)
+```
+pg_dump -h 127.0.0.1 -p 5876 -U admin arcadia -t tablename>arcadia.sql (注意>符号前后不能有空格)
+```
+9、只导出表结构(-s)
+```
+pg_dump -h 127.0.0.1 -p 5876  -U admin -s arcadia>arcadia.sql  (注意>符号前后不能有空格)
+```
+
 ## 配置监控日志服务
 
 ## CI/CD 工具
+使用 github action
 
 ## API 测试
+API 文档 
+`https://portal.kubeagi.com/kubeagi-apis/swagger/index.html`
+
+
 
 ## containerd 运维
 Containerd 可以在宿主机中管理完整的容器生命周期：容器镜像的传输和存储、容器的执行和管理、存储和网络等。它主要负责干以下事情：
