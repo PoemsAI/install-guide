@@ -36,25 +36,14 @@ kubectl get pod -n poemsai --no-headers=true | grep chatglm2-6b-worker-69499bb74
 ## PostgreSQL数据库运维
 
 helm方式安装 postgresql 及 [pgadmin](https://github.com/rowanruseler/helm-charts/tree/master/charts/pgadmin4)
+修改 values.yaml，参考样例 [values.yaml](https://github.com/PoemsAI/helm-charts/blob/main/charts/pgadmin4/examples/values-sample.yaml)、[ingress.yaml](https://github.com/PoemsAI/helm-charts/blob/main/charts/pgadmin4/examples/ingress-sample.yaml)
+
 安装命令：
 ```
-$ helm repo add runix https://helm.runix.net/
-$ helm install my-release runix/pgadmin4
+$ git clone https://github.com/PoemsAI/helm-charts
+$ helm -n kubeagi-system install pgadmin4 . -f value.yaml
 ```
-执行结果如下：
-```
-➜  ~ helm install pgadmin4  runix/pgadmin4 -n kubeagi-system
-NAME: pgadmin4
-LAST DEPLOYED: Mon Mar 25 18:16:13 2024
-NAMESPACE: kubeagi-system
-STATUS: deployed
-REVISION: 1
-NOTES:
-1. Get the application URL by running these commands:
-  export POD_NAME=$(kubectl get pods --namespace kubeagi-system -l "app.kubernetes.io/name=pgadmin4,app.kubernetes.io/instance=pgadmin4" -o jsonpath="{.items[0].metadata.name}")
-  echo "Visit http://127.0.0.1:8080 to use your application"
-  kubectl port-forward $POD_NAME 8080:80
-```
+
 
 1、连接数据库
 ```
