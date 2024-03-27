@@ -1,0 +1,61 @@
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    description: component-store-ingress
+    displayName: component-store-ingress
+    httpSend: /
+    ingress-lb: portal-ingress
+    kubernetes.io/ingress.class: portal-ingress
+    meta.helm.sh/release-name: component-store
+    meta.helm.sh/release-namespace: kubebb-system
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_cache static-cache;
+      proxy_cache_valid 404 10m;
+      proxy_cache_use_stale error timeout updating http_404 http_500 http_502 http_503 http_504;
+      proxy_cache_bypass $http_x_purge;
+      add_header X-Cache-Status $upstream_cache_status; # check X-Cache-Status to see if it's HIT
+      rewrite ^/(component-store-apis)(/|$)(.*)$ /$3 break;
+    nginx.ingress.kubernetes.io/enable-access-log: "false"
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "false"
+    nginx.ingress.kubernetes.io/load-balance: round_robin
+    nginx.ingress.kubernetes.io/proxy-body-size: ""
+    nginx.ingress.kubernetes.io/proxy-buffering: "on"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/server-alias: ""
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/upstream-vhost: $host
+  creationTimestamp: "2024-03-27T08:35:08Z"
+  generation: 4
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    ingress-lb: portal-ingress
+  name: component-store
+  namespace: kubebb-system
+  resourceVersion: "4714517"
+  uid: ca7ba87d-a3f4-4eb2-a774-d874c6d4c54c
+spec:
+  rules:
+  - host: portal.kubeagi.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: component-store
+            port:
+              number: 8066
+        path: /component-store-apis
+        pathType: ImplementationSpecific
+      - backend:
+          service:
+            name: component-store
+            port:
+              number: 8066
+        path: /component-store-public
+        pathType: ImplementationSpecific
+status:
+  loadBalancer: {}

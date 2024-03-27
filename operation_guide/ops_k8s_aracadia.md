@@ -33,7 +33,30 @@ kubectl get pod -n poemsai --no-headers=true | grep chatglm2-6b-worker-69499bb74
 
 参见 [k8s常用命令](k8s_commands.md)
 
-## PostgreSQL数据库运维
+## 安装 component-store 
+This Helm chart installs the [component-store](https://github.com/kubebb/components/tree/main/charts/component-store) into your Kubernetes.
+
+Install
+```
+helm install component-store kubebb/component-store --set ingressDomain=<ip>.nip.io
+```
+Upgrade
+```
+helm upgrade component-store kubebb/component-store --set ingressDomain=<ip>.nip.io
+```
+Uninstall
+```
+helm uninstall component-store
+```
+如安装后遇到如下问题，portal无法访问component，修改component-store 的 ingress，参考配置为 [ingress-sample.yaml](ingress-sample.yaml)
+```
+kubectl edit ingress component-store -n kubebb-system
+```
+![alt text](image-3.png)
+
+## Etcd 运维
+
+## PostgreSQL 数据库运维
 
 helm方式安装 postgresql 及 [pgadmin](https://github.com/rowanruseler/helm-charts/tree/master/charts/pgadmin4)
 修改 values.yaml，参考样例 [values.yaml](https://github.com/PoemsAI/helm-charts/blob/main/charts/pgadmin4/examples/values-sample.yaml)、[ingress.yaml](https://github.com/PoemsAI/helm-charts/blob/main/charts/pgadmin4/examples/ingress-sample.yaml)
