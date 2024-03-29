@@ -404,6 +404,7 @@ kubectl get pods -n kubeagi-system
 ```
 https://portal.<replaced-ingress-nginx-ip>.nip.io
 ```
+- - -
 
 ## 安装后操作
 ### 添加管理集群
@@ -506,6 +507,58 @@ mc --insecure cp -r bge-reranker-large/  arcadia/kubeagi-system/model/bge-reran
 ### 查看 API 文档
 https://portal.172.18.0.2.nip.io/kubeagi-apis/swagger/index.html
 
+## 安装 ELK
+#### 安装 elasticsearch
+1、kubectl create ns elk-logging
+2、helm repo add elastic  https://helm.elastic.co
+3、下载安装包，helm fetch elastic/elasticsearch
+4、tar -zxvf elasticsearch-<version>.tgz
+5、修改 values.yaml，参考[样例](values-elasticsearch.yaml)
+```
+resources:
+  requests:  # requests资源改小，避免占用太多资源，起不来
+    cpu: "100m"
+    memory: "100Mi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+...
+volumeClaimTemplate:
+  storageClassName: "openebs-hostpath" # 添加storageClassName，这里使用了openebs，如果是其他的则改成相应的storageClassName
+...
+persistence:
+  enabled: true # 开启持久化
+```
+6、创建 elasticsearch
+
+```
+➜  ~ helm -n elk-logging install elasticsearch . -f values.yaml
+NAME: elasticsearch
+LAST DEPLOYED: Thu Mar 28 20:38:13 2024
+NAMESPACE: elk-logging
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Watch all cluster members come up.
+  $ kubectl get pods --namespace=elk-logging -l app=elasticsearch-master -w
+2. Retrieve elastic user's password.
+  $ kubectl get secrets --namespace=elk-logging elasticsearch-master-credentials -ojsonpath='{.data.password}' | base64 -d
+3. Test cluster health using Helm test.
+  $ helm --namespace=elk-logging test elasticsearch
+```
+
+#### 安装 Kibana
+1、下载安装包 helm fetch elastic/kibana
+2、修改values.yaml，参考[样例](values-kibana.yaml)
+3、`helm -n elk-logging  install kibana . -f values.yaml`
+
+ingress 未生效的问题：
+```
+# ingress-class没写，导致nginx-controller不认这个ingress
+# 在 annotations 加了 ingress-class 相关的字段。
+ingress-lb: portal-ingress
+kubernetes.io/ingress.class: portal-ingress
+```
 
 ## u4a使用公网域名+证书
 请查看 [u4a使用公网域名+证书](u4a使用公网域名+证书.md)
@@ -517,3 +570,6 @@ ingress-nginx的yaml文件下载地址：https://kubernetes.github.io/ingress-ng
 
 完成后，访问服务如下：
 ![alt text](A6257091-9FC5-46AD-BF14-B7CF9901DD71.webp)
+
+
+[def]: values-elas
