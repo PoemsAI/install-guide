@@ -55,7 +55,11 @@ kubectl edit ingress component-store -n kubebb-system
 ![alt text](image-3.png)
 
 ## Etcd 运维
-
+```
+./etcdctl -h
+./etcdctl put /test/key1 value1
+./etcdctl get /test/key1
+```
 ## PostgreSQL 数据库运维
 
 helm方式安装 postgresql 及 [pgadmin](https://github.com/rowanruseler/helm-charts/tree/master/charts/pgadmin4)
